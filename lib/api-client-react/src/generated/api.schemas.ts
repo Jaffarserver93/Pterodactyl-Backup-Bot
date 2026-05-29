@@ -18,6 +18,17 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface SavedConfig {
+  panelUrl: string;
+  username: string;
+  serverId: string;
+  backupIntervalMinutes: number;
+}
+
+export interface BotConfigResult {
+  config: SavedConfig | null;
+}
+
 export interface BotConfig {
   panelUrl: string;
   username: string;

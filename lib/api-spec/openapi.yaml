@@ -29,10 +29,21 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 
   /bot/config:
+    get:
+      operationId: getConfig
+      tags: [bot]
+      summary: Get saved bot configuration (password omitted)
+      responses:
+        "200":
+          description: Current saved config or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotConfigResult"
     post:
       operationId: saveConfig
       tags: [bot]
-      summary: Save bot configuration (in-memory only)
+      summary: Save bot configuration to database
       requestBody:
         required: true
         content:
@@ -208,6 +219,33 @@ components:
           type: string
       required:
         - error
+
+    BotConfigResult:
+      type: object
+      properties:
+        config:
+          oneOf:
+            - $ref: "#/components/schemas/SavedConfig"
+            - type: "null"
+      required:
+        - config
+
+    SavedConfig:
+      type: object
+      properties:
+        panelUrl:
+          type: string
+        username:
+          type: string
+        serverId:
+          type: string
+        backupIntervalMinutes:
+          type: number
+      required:
+        - panelUrl
+        - username
+        - serverId
+        - backupIntervalMinutes
 
     BotConfig:
       type: object

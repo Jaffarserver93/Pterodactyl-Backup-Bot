@@ -1,4 +1,8 @@
-// Volatile in-memory state — all data is wiped on server restart
+// Bot state — running/status is volatile; config is persisted to PostgreSQL
+
+import { db } from "./db.js";
+import { botConfigTable } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
 
 export interface LogEntry {
   level: "info" | "warn" | "error" | "success";
@@ -36,7 +40,7 @@ export interface BotStateData {
   startedAt: number | null;
 }
 
-// Single volatile state object
+// Single volatile state object (running/stats only — config is loaded from DB)
 let state: BotStateData = {
   running: false,
   configured: false,
@@ -51,9 +55,52 @@ export function getState(): Readonly<BotStateData> {
   return state;
 }
 
-export function setConfig(config: BotConfig): void {
+/** Load saved config from DB into memory on startup */
+export async function loadConfigFromDb(): Promise<void> {
+  try {
+    const rows = await db.select().from(botConfigTable).where(eq(botConfigTable.id, 1));
+    if (rows.length > 0) {
+      const row = rows[0];
+      state.config = {
+        panelUrl: row.panelUrl,
+        username: row.username,
+        password: row.password,
+        serverId: row.serverId,
+        backupIntervalMinutes: row.backupIntervalMinutes,
+      };
+      state.configured = true;
+    }
+  } catch (err) {
+    // Non-fatal — continue with no config
+    console.error("Failed to load config from DB:", err);
+  }
+}
+
+/** Save config to both memory and DB */
+export async function setConfig(config: BotConfig): Promise<void> {
   state.config = config;
   state.configured = true;
+
+  await db
+    .insert(botConfigTable)
+    .values({
+      id: 1,
+      panelUrl: config.panelUrl,
+      username: config.username,
+      password: config.password,
+      serverId: config.serverId,
+      backupIntervalMinutes: config.backupIntervalMinutes,
+    })
+    .onConflictDoUpdate({
+      target: botConfigTable.id,
+      set: {
+        panelUrl: config.panelUrl,
+        username: config.username,
+        password: config.password,
+        serverId: config.serverId,
+        backupIntervalMinutes: config.backupIntervalMinutes,
+      },
+    });
 }
 
 export function setRunning(running: boolean): void {

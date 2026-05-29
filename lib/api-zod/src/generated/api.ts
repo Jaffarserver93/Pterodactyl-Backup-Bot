@@ -17,7 +17,20 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary Save bot configuration (in-memory only)
+ * @summary Get saved bot configuration (password omitted)
+ */
+export const GetConfigResponse = zod.object({
+  "config": zod.union([zod.object({
+  "panelUrl": zod.string(),
+  "username": zod.string(),
+  "serverId": zod.string(),
+  "backupIntervalMinutes": zod.number()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Save bot configuration to database
  */
 export const SaveConfigBody = zod.object({
   "panelUrl": zod.string(),

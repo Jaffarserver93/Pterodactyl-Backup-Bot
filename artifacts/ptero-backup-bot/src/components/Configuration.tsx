@@ -5,10 +5,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useSaveConfig, useGetBotStatus, getGetBotStatusQueryKey } from "@workspace/api-client-react";
+import { useSaveConfig, useGetConfig, useGetBotStatus, getGetBotStatusQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Save, Server, Key, Lock, Clock } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Save, Server } from "lucide-react";
+import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 const configSchema = z.object({
@@ -25,6 +25,7 @@ export function Configuration() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: savedConfig } = useGetConfig();
   const { data: status } = useGetBotStatus({
     query: {
       queryKey: getGetBotStatusQueryKey(),
@@ -36,7 +37,7 @@ export function Configuration() {
       onSuccess: () => {
         toast({
           title: "Configuration Saved",
-          description: "Your backup bot configuration has been securely saved.",
+          description: "Your backup bot configuration has been saved to the database.",
         });
         queryClient.invalidateQueries({ queryKey: getGetBotStatusQueryKey() });
       },
@@ -61,9 +62,25 @@ export function Configuration() {
     },
   });
 
+  // Pre-fill form with saved config from the database (password excluded for security)
+  useEffect(() => {
+    const cfg = savedConfig?.config;
+    if (cfg) {
+      form.reset({
+        panelUrl: cfg.panelUrl ?? "",
+        username: cfg.username ?? "",
+        password: "",
+        serverId: cfg.serverId ?? "",
+        backupIntervalMinutes: cfg.backupIntervalMinutes ?? 5,
+      });
+    }
+  }, [savedConfig]);
+
   function onSubmit(data: ConfigFormValues) {
     saveConfig.mutate({ data });
   }
+
+  const hasSavedConfig = !!savedConfig?.config;
 
   return (
     <div className="space-y-6">
@@ -74,7 +91,9 @@ export function Configuration() {
             PANEL CONNECTION
           </CardTitle>
           <CardDescription className="text-xs">
-            Enter your Pterodactyl panel credentials and target server.
+            {hasSavedConfig
+              ? "Config loaded from database. Enter your password to save changes."
+              : "Enter your Pterodactyl panel credentials and target server."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -114,7 +133,9 @@ export function Configuration() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Password</FormLabel>
+                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                        Password{hasSavedConfig ? " (required to save)" : ""}
+                      </FormLabel>
                       <FormControl>
                         <Input type="password" placeholder="••••••••" className="font-mono text-sm bg-background/50" {...field} />
                       </FormControl>
@@ -154,9 +175,9 @@ export function Configuration() {
                 />
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full font-mono text-sm tracking-wider" 
+              <Button
+                type="submit"
+                className="w-full font-mono text-sm tracking-wider"
                 disabled={saveConfig.isPending}
               >
                 {saveConfig.isPending ? (

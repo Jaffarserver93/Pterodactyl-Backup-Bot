@@ -12,7 +12,24 @@ import {
 
 const router: IRouter = Router();
 
-// POST /bot/config — save config in volatile memory
+// GET /bot/config — return saved config (password omitted)
+router.get("/bot/config", async (_req, res): Promise<void> => {
+  const state = getState();
+  if (!state.config) {
+    res.json({ config: null });
+    return;
+  }
+  res.json({
+    config: {
+      panelUrl: state.config.panelUrl,
+      username: state.config.username,
+      serverId: state.config.serverId,
+      backupIntervalMinutes: state.config.backupIntervalMinutes,
+    },
+  });
+});
+
+// POST /bot/config — save config to DB + memory
 router.post("/bot/config", async (req, res): Promise<void> => {
   const parsed = SaveConfigBody.safeParse(req.body);
   if (!parsed.success) {
@@ -20,17 +37,22 @@ router.post("/bot/config", async (req, res): Promise<void> => {
     return;
   }
 
-  setConfig({
-    panelUrl: parsed.data.panelUrl.replace(/\/$/, ""),
-    username: parsed.data.username,
-    password: parsed.data.password,
-    serverId: parsed.data.serverId,
-    backupIntervalMinutes: parsed.data.backupIntervalMinutes ?? 5,
-  });
+  try {
+    await setConfig({
+      panelUrl: parsed.data.panelUrl.replace(/\/$/, ""),
+      username: parsed.data.username,
+      password: parsed.data.password,
+      serverId: parsed.data.serverId,
+      backupIntervalMinutes: parsed.data.backupIntervalMinutes ?? 5,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to persist config to DB");
+    res.status(500).json({ error: "Failed to save configuration" });
+    return;
+  }
 
-  req.log.info("Bot config saved to memory");
-
-  res.json(SaveConfigResponse.parse({ success: true, message: "Configuration saved (in-memory)" }));
+  req.log.info("Bot config saved to DB");
+  res.json(SaveConfigResponse.parse({ success: true, message: "Configuration saved" }));
 });
 
 // POST /bot/start — launch Puppeteer automation

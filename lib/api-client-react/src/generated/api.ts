@@ -21,6 +21,7 @@ import type {
 
 import type {
   BotConfig,
+  BotConfigResult,
   BotStatus,
   ErrorResponse,
   HealthStatus,
@@ -119,6 +120,83 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+export const getGetConfigUrl = () => {
+
+
+
+
+  return `/api/bot/config`
+}
+
+/**
+ * @summary Get saved bot configuration (password omitted)
+ */
+export const getConfig = async ( options?: RequestInit): Promise<BotConfigResult> => {
+
+  return customFetch<BotConfigResult>(getGetConfigUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetConfigQueryKey = () => {
+    return [
+    `/api/bot/config`
+    ] as const;
+    }
+
+
+export const getGetConfigQueryOptions = <TData = Awaited<ReturnType<typeof getConfig>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetConfigQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getConfig>>> = ({ signal }) => getConfig({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getConfig>>>
+export type GetConfigQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get saved bot configuration (password omitted)
+ */
+
+export function useGetConfig<TData = Awaited<ReturnType<typeof getConfig>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetConfigQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getSaveConfigUrl = () => {
 
 
@@ -128,7 +206,7 @@ export const getSaveConfigUrl = () => {
 }
 
 /**
- * @summary Save bot configuration (in-memory only)
+ * @summary Save bot configuration to database
  */
 export const saveConfig = async (botConfig: BotConfig, options?: RequestInit): Promise<SuccessResponse> => {
 
@@ -177,7 +255,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SaveConfigMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Save bot configuration (in-memory only)
+ * @summary Save bot configuration to database
  */
 export const useSaveConfig = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveConfig>>, TError,{data: BodyType<BotConfig>}, TContext>, request?: SecondParameter<typeof customFetch>}

@@ -7,9 +7,11 @@
  */
 
 export * from './botConfig';
+export * from './botConfigResult';
 export * from './botStatus';
 export * from './errorResponse';
 export * from './healthStatus';
+export * from './savedConfig';
 export * from './successResponse';
 export * from './telegramInitInput';
 export * from './telegramOtpInput';
