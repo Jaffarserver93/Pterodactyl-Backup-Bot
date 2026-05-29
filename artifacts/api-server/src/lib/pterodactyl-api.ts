@@ -82,39 +82,43 @@ async function runBackupCycle(
   const { panelUrl, apiKey, serverId } = config;
 
   try {
-    setCurrentAction("Checking existing backups...");
-    emitLog(io, "info", "Checking existing backups...");
-
-    const list = await pteroFetch<PteroBackupList>(
-      panelUrl,
-      apiKey,
-      `/servers/${serverId}/backups`,
-    );
-
-    // Delete oldest non-locked backup if at the limit (Pterodactyl allows 3 by default)
-    const backups = list.data;
-    const unlocked = backups.filter((b) => !b.attributes.is_locked);
-    if (backups.length >= 3 && unlocked.length > 0) {
-      const oldest = unlocked[unlocked.length - 1];
-      emitLog(io, "info", `Deleting oldest backup to make room: ${oldest.attributes.name}`);
-      await pteroFetch(
-        panelUrl,
-        apiKey,
-        `/servers/${serverId}/backups/${oldest.attributes.uuid}`,
-        "DELETE",
-      );
-    }
-
     setCurrentAction("Creating backup...");
     emitLog(io, "info", "Creating backup via Pterodactyl API...");
 
-    const created = await pteroFetch<PteroBackup>(
-      panelUrl,
-      apiKey,
-      `/servers/${serverId}/backups`,
-      "POST",
-      {},
-    );
+    // Attempt to create backup; if at limit, delete oldest unlocked and retry once
+    let createAttempt = 0;
+    const tryCreate = async (): Promise<PteroBackup> => {
+      try {
+        return await pteroFetch<PteroBackup>(
+          panelUrl,
+          apiKey,
+          `/servers/${serverId}/backups`,
+          "POST",
+          {},
+        );
+      } catch (err) {
+        const msg = (err as Error).message;
+        const atLimit = msg.includes("reached its limit") || msg.includes("limit of");
+        if (atLimit && createAttempt === 0) {
+          createAttempt++;
+          emitLog(io, "info", "At backup limit — removing oldest unlocked backup...");
+          const list = await pteroFetch<PteroBackupList>(
+            panelUrl,
+            apiKey,
+            `/servers/${serverId}/backups`,
+          );
+          const unlocked = list.data.filter((b) => !b.attributes.is_locked);
+          if (unlocked.length === 0) throw new Error("At backup limit but all backups are locked — cannot delete any");
+          const oldest = unlocked[unlocked.length - 1];
+          emitLog(io, "info", `Deleted: ${oldest.attributes.name}`);
+          await pteroFetch(panelUrl, apiKey, `/servers/${serverId}/backups/${oldest.attributes.uuid}`, "DELETE");
+          return tryCreate();
+        }
+        throw err;
+      }
+    };
+
+    const created = await tryCreate();
 
     const backupName = created.attributes.name;
     const backupUuid = created.attributes.uuid;
