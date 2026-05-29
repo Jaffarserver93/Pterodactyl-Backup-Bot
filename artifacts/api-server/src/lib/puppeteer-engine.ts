@@ -160,6 +160,9 @@ export async function startBot(io: SocketIOServer): Promise<void> {
     page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
 
+    // Start streaming screenshots immediately so the user can watch login + navigation
+    startScreenshotStream(io);
+
     // Pterodactyl always redirects the root to /auth/login — go there directly
     const loginUrl = `${panelUrl}/auth/login`;
     emitLog(io, "info", `Navigating to ${loginUrl}`);
