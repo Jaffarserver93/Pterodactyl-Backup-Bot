@@ -135,7 +135,8 @@ export async function startBot(io: SocketIOServer): Promise<void> {
   emitLog(io, "info", "Launching browser...");
 
   try {
-    const chromePath = "/home/runner/.cache/puppeteer/chrome/linux-149.0.7827.22/chrome-linux64/chrome";
+    const chromePath = process.env.CHROME_PATH
+      || "/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0.7204.100/bin/chromium";
     browser = await puppeteer.launch({
       executablePath: chromePath,
       headless: true,
