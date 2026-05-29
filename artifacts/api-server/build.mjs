@@ -41,6 +41,8 @@ async function buildAll() {
       "xxhash-addon",
       "bufferutil",
       "utf-8-validate",
+      "websocket",
+      "telegram",
       "ssh2",
       "cpu-features",
       "dtrace-provider",

@@ -1,5 +1,8 @@
-import app from "./app";
-import { logger } from "./lib/logger";
+import http from "http";
+import { Server as SocketIOServer } from "socket.io";
+import app from "./app.js";
+import { setIo } from "./socket.js";
+import { logger } from "./lib/logger.js";
 
 const rawPort = process.env["PORT"];
 
@@ -15,11 +18,27 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+// Create HTTP server so Socket.io can share the same port
+const httpServer = http.createServer(app);
 
+// Socket.io setup — allows connections from the Vite dev proxy
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+  path: "/socket.io",
+});
+
+setIo(io);
+
+io.on("connection", (socket) => {
+  logger.info({ socketId: socket.id }, "WebSocket client connected");
+  socket.on("disconnect", () => {
+    logger.info({ socketId: socket.id }, "WebSocket client disconnected");
+  });
+});
+
+httpServer.listen(port, () => {
   logger.info({ port }, "Server listening");
 });

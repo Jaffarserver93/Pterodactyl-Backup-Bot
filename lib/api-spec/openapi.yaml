@@ -1,22 +1,25 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Pterodactyl Backup Bot API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: bot
+    description: Bot control operations
+  - name: telegram
+    description: Telegram client operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +27,159 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /bot/config:
+    post:
+      operationId: saveConfig
+      tags: [bot]
+      summary: Save bot configuration (in-memory only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotConfig"
+      responses:
+        "200":
+          description: Config saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bot/start:
+    post:
+      operationId: startBot
+      tags: [bot]
+      summary: Start the Puppeteer automation bot
+      responses:
+        "200":
+          description: Bot started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Config missing or bot already running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bot/stop:
+    post:
+      operationId: stopBot
+      tags: [bot]
+      summary: Stop the Puppeteer automation bot
+      responses:
+        "200":
+          description: Bot stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Bot not running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bot/status:
+    get:
+      operationId: getBotStatus
+      tags: [bot]
+      summary: Get current bot status and stats
+      responses:
+        "200":
+          description: Bot status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotStatus"
+
+  /telegram/init:
+    post:
+      operationId: initTelegram
+      tags: [telegram]
+      summary: Initialize Telegram MTProto client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramInitInput"
+      responses:
+        "200":
+          description: Client initialized, OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /telegram/verify:
+    post:
+      operationId: verifyTelegramOtp
+      tags: [telegram]
+      summary: Submit OTP to complete Telegram authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramOtpInput"
+      responses:
+        "200":
+          description: Authenticated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /telegram/status:
+    get:
+      operationId: getTelegramStatus
+      tags: [telegram]
+      summary: Get Telegram client authentication status
+      responses:
+        "200":
+          description: Telegram status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramStatus"
+
+  /telegram/disconnect:
+    post:
+      operationId: disconnectTelegram
+      tags: [telegram]
+      summary: Disconnect and wipe Telegram session from memory
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +190,102 @@ components:
       required:
         - status
 
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    BotConfig:
+      type: object
+      properties:
+        panelUrl:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        serverId:
+          type: string
+        backupIntervalMinutes:
+          type: number
+      required:
+        - panelUrl
+        - username
+        - password
+        - serverId
+
+    BotStatus:
+      type: object
+      properties:
+        running:
+          type: boolean
+        configured:
+          type: boolean
+        lastBackupAt:
+          type: ["string", "null"]
+        backupCount:
+          type: integer
+        currentAction:
+          type: ["string", "null"]
+        uptime:
+          type: ["number", "null"]
+      required:
+        - running
+        - configured
+        - lastBackupAt
+        - backupCount
+        - currentAction
+        - uptime
+
+    TelegramInitInput:
+      type: object
+      properties:
+        apiId:
+          type: integer
+        apiHash:
+          type: string
+        phoneNumber:
+          type: string
+      required:
+        - apiId
+        - apiHash
+        - phoneNumber
+
+    TelegramOtpInput:
+      type: object
+      properties:
+        code:
+          type: string
+      required:
+        - code
+
+    TelegramStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        authenticated:
+          type: boolean
+        awaitingOtp:
+          type: boolean
+        phoneNumber:
+          type: ["string", "null"]
+      required:
+        - connected
+        - authenticated
+        - awaitingOtp
+        - phoneNumber

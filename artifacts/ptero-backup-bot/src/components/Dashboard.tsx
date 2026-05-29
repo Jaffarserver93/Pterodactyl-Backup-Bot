@@ -1,0 +1,222 @@
+import { useSocketEvents } from "@/hooks/use-socket";
+import { useGetBotStatus, useStartBot, useStopBot, getGetBotStatusQueryKey } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useQueryClient } from "@tanstack/react-query";
+import { Play, Square, Activity, Database, Clock, Terminal as TerminalIcon, AlertCircle } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
+
+export function Dashboard() {
+  const { screenshot, logs } = useSocketEvents();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: status, isLoading, isError } = useGetBotStatus({
+    query: {
+      refetchInterval: 5000,
+      queryKey: getGetBotStatusQueryKey(),
+    }
+  });
+
+  const startBot = useStartBot({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Bot Started", description: "The backup bot is now running." });
+        queryClient.invalidateQueries({ queryKey: getGetBotStatusQueryKey() });
+      },
+      onError: (err) => {
+        toast({ title: "Failed to start bot", description: err.data?.error || "Unknown error", variant: "destructive" });
+      }
+    }
+  });
+
+  const stopBot = useStopBot({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Bot Stopped", description: "The backup bot has been stopped." });
+        queryClient.invalidateQueries({ queryKey: getGetBotStatusQueryKey() });
+      },
+      onError: (err) => {
+        toast({ title: "Failed to stop bot", description: err.data?.error || "Unknown error", variant: "destructive" });
+      }
+    }
+  });
+
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [logs]);
+
+  const isRunning = status?.running;
+  const isConfigured = status?.configured;
+
+  const formatUptime = (ms: number | null) => {
+    if (!ms) return "00:00:00";
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const getLogColor = (level: string) => {
+    switch (level) {
+      case 'success': return 'text-primary';
+      case 'error': return 'text-destructive';
+      case 'warn': return 'text-amber-500';
+      default: return 'text-slate-400';
+    }
+  };
+
+  if (!isConfigured && !isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] text-center p-6 space-y-4 border rounded-xl border-dashed border-border bg-card/20">
+        <AlertCircle className="w-10 h-10 text-muted-foreground" />
+        <h3 className="font-mono text-lg font-bold tracking-tight">NOT CONFIGURED</h3>
+        <p className="text-sm text-muted-foreground font-sans">
+          Please configure the panel connection in the CONFIG tab before starting the bot.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 flex-1 flex flex-col min-h-0">
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="border-border/50 bg-card/40 backdrop-blur-sm relative overflow-hidden group">
+          <div className={`absolute inset-0 opacity-10 ${isRunning ? 'bg-primary' : 'bg-muted'} transition-colors duration-1000`} />
+          <CardContent className="p-4 flex flex-col gap-2 relative">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono text-muted-foreground uppercase">Status</span>
+              <Activity className={`w-3.5 h-3.5 ${isRunning ? 'text-primary animate-pulse' : 'text-muted-foreground'}`} />
+            </div>
+            <div className="font-mono text-lg font-bold">
+              {isRunning ? <span className="text-primary tracking-widest">RUNNING</span> : <span className="text-muted-foreground tracking-widest">STOPPED</span>}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 bg-card/40 backdrop-blur-sm">
+          <CardContent className="p-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono text-muted-foreground uppercase">Backups</span>
+              <Database className="w-3.5 h-3.5 text-muted-foreground" />
+            </div>
+            <div className="font-mono text-lg font-bold text-foreground">
+              {status?.backupCount || 0}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="text-xs font-mono text-muted-foreground flex justify-between items-center bg-card/30 p-2 rounded border border-border/30">
+          <span>UPTIME:</span>
+          <span className="text-foreground">{formatUptime(status?.uptime || null)}</span>
+        </div>
+        <div className="text-xs font-mono text-muted-foreground flex justify-between items-center bg-card/30 p-2 rounded border border-border/30">
+          <span>LAST:</span>
+          <span className="text-foreground truncate ml-2">
+            {status?.lastBackupAt ? new Date(status.lastBackupAt).toLocaleTimeString() : 'NEVER'}
+          </span>
+        </div>
+      </div>
+
+      {status?.currentAction && (
+        <div className="text-xs font-mono p-2 bg-primary/10 border border-primary/30 rounded text-primary flex items-center gap-2">
+          <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
+          <span className="truncate">{status.currentAction.toUpperCase()}</span>
+        </div>
+      )}
+
+      {/* Browser Preview Window */}
+      <div className="rounded-md border border-border/50 bg-black overflow-hidden flex flex-col shadow-2xl relative aspect-[16/9]">
+        <div className="h-6 bg-secondary flex items-center px-2 border-b border-border/50 z-10">
+          <div className="flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-destructive/80" />
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
+            <div className="w-2.5 h-2.5 rounded-full bg-primary/80" />
+          </div>
+          <div className="mx-auto text-[10px] font-mono text-muted-foreground flex items-center gap-1 opacity-50">
+            <Activity className="w-3 h-3" /> LIVE PREVIEW
+          </div>
+        </div>
+        <div className="flex-1 relative bg-zinc-950 flex items-center justify-center overflow-hidden">
+          {screenshot ? (
+            <img 
+              src={screenshot} 
+              alt="Browser Preview" 
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <div className="text-muted-foreground/30 flex flex-col items-center gap-2">
+              <Activity className="w-8 h-8" />
+              <span className="font-mono text-xs tracking-widest">AWAITING FEED</span>
+            </div>
+          )}
+          {isRunning && (
+            <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/50 backdrop-blur px-2 py-1 rounded text-[10px] font-mono border border-white/10 z-10">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
+              <span className="text-white/80">REC</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Terminal Logs */}
+      <div className="flex-1 min-h-[150px] rounded-md border border-border/50 bg-zinc-950 flex flex-col overflow-hidden shadow-inner">
+        <div className="h-6 bg-secondary/50 flex items-center px-3 border-b border-border/50 shrink-0">
+          <TerminalIcon className="w-3 h-3 mr-2 text-muted-foreground" />
+          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Terminal Output</span>
+        </div>
+        <div className="p-2 overflow-y-auto terminal-scroll flex-1 font-mono text-[10px] leading-relaxed break-all">
+          {logs.length === 0 ? (
+            <div className="text-muted-foreground/40 italic">Waiting for logs...</div>
+          ) : (
+            logs.map((log, i) => (
+              <div key={i} className="mb-1 flex gap-2">
+                <span className="text-muted-foreground/50 shrink-0">
+                  {new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}
+                </span>
+                <span className={`${getLogColor(log.level)}`}>
+                  {log.message}
+                </span>
+              </div>
+            ))
+          )}
+          <div ref={logEndRef} />
+        </div>
+      </div>
+
+      <div className="pt-2">
+        <Button
+          onClick={() => isRunning ? stopBot.mutate() : startBot.mutate()}
+          className={`w-full font-mono text-sm tracking-widest h-12 shadow-lg transition-all ${
+            isRunning 
+              ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-t border-white/20" 
+              : "bg-primary hover:bg-primary/90 text-primary-foreground border-t border-white/20"
+          }`}
+          disabled={startBot.isPending || stopBot.isPending}
+        >
+          {isRunning ? (
+            <span className="flex items-center gap-2">
+              <Square className="w-4 h-4 fill-current" /> STOP BOT
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Play className="w-4 h-4 fill-current" /> START BOT
+            </span>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
