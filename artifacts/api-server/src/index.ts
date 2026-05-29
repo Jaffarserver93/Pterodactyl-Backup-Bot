@@ -3,7 +3,7 @@ import { Server as SocketIOServer } from "socket.io";
 import app from "./app.js";
 import { setIo } from "./socket.js";
 import { logger } from "./lib/logger.js";
-import { getLogBuffer, loadConfigFromDb } from "./lib/bot-state.js";
+import { getLogBuffer, loadConfigFromDb, ensureSchema } from "./lib/bot-state.js";
 
 const rawPort = process.env["PORT"];
 
@@ -47,6 +47,8 @@ io.on("connection", (socket) => {
 
 httpServer.listen(port, async () => {
   logger.info({ port }, "Server listening");
+  await ensureSchema();
+  logger.info("DB schema ready");
   await loadConfigFromDb();
   logger.info("Config loaded from DB");
 });

@@ -2,7 +2,22 @@
 
 import { db } from "./db.js";
 import { botConfigTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+
+// Create the bot_config table if it doesn't exist yet.
+// This runs on every startup so fresh databases (e.g. Render) work without
+// any manual migration step.
+export async function ensureSchema(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS bot_config (
+      id                     integer PRIMARY KEY DEFAULT 1,
+      panel_url              text    NOT NULL,
+      api_key                text    NOT NULL,
+      server_id              text    NOT NULL,
+      backup_interval_minutes integer NOT NULL DEFAULT 5
+    )
+  `);
+}
 
 export interface LogEntry {
   level: "info" | "warn" | "error" | "success";
