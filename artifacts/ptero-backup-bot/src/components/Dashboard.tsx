@@ -136,10 +136,11 @@ export function Dashboard() {
       )}
 
       {/* Terminal Logs */}
-      <div className="flex-1 min-h-[250px] rounded-md border border-border/50 bg-zinc-950 flex flex-col overflow-hidden shadow-inner">
+      <div className="rounded-md border border-border/50 bg-zinc-950 flex flex-col overflow-hidden shadow-inner h-[280px] shrink-0">
         <div className="h-6 bg-secondary/50 flex items-center px-3 border-b border-border/50 shrink-0">
           <TerminalIcon className="w-3 h-3 mr-2 text-muted-foreground" />
           <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest flex-1">Terminal Output</span>
+          <span className="text-[10px] font-mono text-muted-foreground/40 mr-2">{logs.length}/50</span>
           <button
             onClick={clearLogs}
             className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 hover:text-destructive transition-colors px-1"
@@ -149,7 +150,7 @@ export function Dashboard() {
             <span className="uppercase tracking-widest">Clear</span>
           </button>
         </div>
-        <div className="p-2 overflow-y-auto terminal-scroll flex-1 font-mono text-[10px] leading-relaxed break-all">
+        <div className="p-2 overflow-y-auto flex-1 font-mono text-[10px] leading-relaxed break-all">
           {logs.length === 0 ? (
             <div className="text-muted-foreground/40 italic">Waiting for logs...</div>
           ) : (

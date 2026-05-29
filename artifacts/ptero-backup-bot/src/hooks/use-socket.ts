@@ -8,7 +8,7 @@ export type LogEntry = {
 };
 
 const LS_KEY = "pterobot:logs";
-const MAX_LOGS = 200;
+const MAX_LOGS = 50;
 
 function loadLogsFromStorage(): LogEntry[] {
   try {
