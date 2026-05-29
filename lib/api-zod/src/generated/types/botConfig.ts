@@ -8,8 +8,7 @@
 
 export interface BotConfig {
   panelUrl: string;
-  username: string;
-  password: string;
+  apiKey: string;
   serverId: string;
   backupIntervalMinutes?: number;
 }

@@ -1,19 +1,18 @@
 import { useSocketEvents } from "@/hooks/use-socket";
 import { useGetBotStatus, useStartBot, useStopBot, getGetBotStatusQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { useQueryClient } from "@tanstack/react-query";
 import { Play, Square, Activity, Database, Terminal as TerminalIcon, AlertCircle, Trash2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export function Dashboard() {
-  const { screenshot, logs, clearLogs } = useSocketEvents();
+  const { logs, clearLogs } = useSocketEvents();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: status, isLoading, isError } = useGetBotStatus({
+  const { data: status, isLoading } = useGetBotStatus({
     query: {
       refetchInterval: 5000,
       queryKey: getGetBotStatusQueryKey(),
@@ -79,7 +78,7 @@ export function Dashboard() {
         <AlertCircle className="w-10 h-10 text-muted-foreground" />
         <h3 className="font-mono text-lg font-bold tracking-tight">NOT CONFIGURED</h3>
         <p className="text-sm text-muted-foreground font-sans">
-          Please configure the panel connection in the CONFIG tab before starting the bot.
+          Go to the CONFIG tab and enter your Pterodactyl Client API key.
         </p>
       </div>
     );
@@ -88,7 +87,7 @@ export function Dashboard() {
   return (
     <div className="space-y-4 flex-1 flex flex-col min-h-0">
       <div className="grid grid-cols-2 gap-4">
-        <Card className="border-border/50 bg-card/40 backdrop-blur-sm relative overflow-hidden group">
+        <Card className="border-border/50 bg-card/40 backdrop-blur-sm relative overflow-hidden">
           <div className={`absolute inset-0 opacity-10 ${isRunning ? 'bg-primary' : 'bg-muted'} transition-colors duration-1000`} />
           <CardContent className="p-4 flex flex-col gap-2 relative">
             <div className="flex items-center justify-between">
@@ -96,7 +95,9 @@ export function Dashboard() {
               <Activity className={`w-3.5 h-3.5 ${isRunning ? 'text-primary animate-pulse' : 'text-muted-foreground'}`} />
             </div>
             <div className="font-mono text-lg font-bold">
-              {isRunning ? <span className="text-primary tracking-widest">RUNNING</span> : <span className="text-muted-foreground tracking-widest">STOPPED</span>}
+              {isRunning
+                ? <span className="text-primary tracking-widest">RUNNING</span>
+                : <span className="text-muted-foreground tracking-widest">STOPPED</span>}
             </div>
           </CardContent>
         </Card>
@@ -134,45 +135,8 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Browser Preview Window */}
-      <div className="rounded-md border border-border/50 bg-black overflow-hidden flex flex-col shadow-2xl relative aspect-[16/9]">
-        <div className="h-6 bg-secondary flex items-center px-2 border-b border-border/50 z-10">
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-destructive/80" />
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-            <div className="w-2.5 h-2.5 rounded-full bg-primary/80" />
-          </div>
-          <div className="mx-auto text-[10px] font-mono text-muted-foreground flex items-center gap-1 opacity-50">
-            <Activity className="w-3 h-3" /> LIVE PREVIEW
-          </div>
-        </div>
-        <div className="flex-1 relative bg-zinc-950 flex items-center justify-center overflow-hidden">
-          {screenshot ? (
-            <img 
-              src={screenshot} 
-              alt="Browser Preview" 
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : (
-            <div className="text-muted-foreground/30 flex flex-col items-center gap-2">
-              <Activity className="w-8 h-8" />
-              <span className="font-mono text-xs tracking-widest">AWAITING FEED</span>
-            </div>
-          )}
-          {isRunning && (
-            <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/50 backdrop-blur px-2 py-1 rounded text-[10px] font-mono border border-white/10 z-10">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>
-              <span className="text-white/80">REC</span>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Terminal Logs */}
-      <div className="flex-1 min-h-[150px] rounded-md border border-border/50 bg-zinc-950 flex flex-col overflow-hidden shadow-inner">
+      <div className="flex-1 min-h-[250px] rounded-md border border-border/50 bg-zinc-950 flex flex-col overflow-hidden shadow-inner">
         <div className="h-6 bg-secondary/50 flex items-center px-3 border-b border-border/50 shrink-0">
           <TerminalIcon className="w-3 h-3 mr-2 text-muted-foreground" />
           <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest flex-1">Terminal Output</span>
@@ -194,7 +158,7 @@ export function Dashboard() {
                 <span className="text-muted-foreground/50 shrink-0">
                   {new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}
                 </span>
-                <span className={`${getLogColor(log.level)}`}>
+                <span className={getLogColor(log.level)}>
                   {log.message}
                 </span>
               </div>
@@ -208,8 +172,8 @@ export function Dashboard() {
         <Button
           onClick={() => isRunning ? stopBot.mutate() : startBot.mutate()}
           className={`w-full font-mono text-sm tracking-widest h-12 shadow-lg transition-all ${
-            isRunning 
-              ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-t border-white/20" 
+            isRunning
+              ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-t border-white/20"
               : "bg-primary hover:bg-primary/90 text-primary-foreground border-t border-white/20"
           }`}
           disabled={startBot.isPending || stopBot.isPending}

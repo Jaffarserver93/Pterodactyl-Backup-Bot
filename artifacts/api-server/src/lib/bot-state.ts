@@ -24,8 +24,7 @@ export function getLogBuffer(): readonly LogEntry[] {
 
 export interface BotConfig {
   panelUrl: string;
-  username: string;
-  password: string;
+  apiKey: string;
   serverId: string;
   backupIntervalMinutes: number;
 }
@@ -40,7 +39,6 @@ export interface BotStateData {
   startedAt: number | null;
 }
 
-// Single volatile state object (running/stats only — config is loaded from DB)
 let state: BotStateData = {
   running: false,
   configured: false,
@@ -55,7 +53,6 @@ export function getState(): Readonly<BotStateData> {
   return state;
 }
 
-/** Load saved config from DB into memory on startup */
 export async function loadConfigFromDb(): Promise<void> {
   try {
     const rows = await db.select().from(botConfigTable).where(eq(botConfigTable.id, 1));
@@ -63,20 +60,17 @@ export async function loadConfigFromDb(): Promise<void> {
       const row = rows[0];
       state.config = {
         panelUrl: row.panelUrl,
-        username: row.username,
-        password: row.password,
+        apiKey: row.apiKey,
         serverId: row.serverId,
         backupIntervalMinutes: row.backupIntervalMinutes,
       };
       state.configured = true;
     }
   } catch (err) {
-    // Non-fatal — continue with no config
     console.error("Failed to load config from DB:", err);
   }
 }
 
-/** Save config to both memory and DB */
 export async function setConfig(config: BotConfig): Promise<void> {
   state.config = config;
   state.configured = true;
@@ -86,8 +80,7 @@ export async function setConfig(config: BotConfig): Promise<void> {
     .values({
       id: 1,
       panelUrl: config.panelUrl,
-      username: config.username,
-      password: config.password,
+      apiKey: config.apiKey,
       serverId: config.serverId,
       backupIntervalMinutes: config.backupIntervalMinutes,
     })
@@ -95,8 +88,7 @@ export async function setConfig(config: BotConfig): Promise<void> {
       target: botConfigTable.id,
       set: {
         panelUrl: config.panelUrl,
-        username: config.username,
-        password: config.password,
+        apiKey: config.apiKey,
         serverId: config.serverId,
         backupIntervalMinutes: config.backupIntervalMinutes,
       },

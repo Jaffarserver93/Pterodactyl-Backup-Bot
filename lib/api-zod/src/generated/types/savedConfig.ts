@@ -8,7 +8,7 @@
 
 export interface SavedConfig {
   panelUrl: string;
-  username: string;
+  apiKey: string;
   serverId: string;
   backupIntervalMinutes: number;
 }

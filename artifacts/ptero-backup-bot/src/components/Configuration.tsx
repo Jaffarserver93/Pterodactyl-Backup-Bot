@@ -7,14 +7,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveConfig, useGetConfig, useGetBotStatus, getGetBotStatusQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Save, Server } from "lucide-react";
+import { Save, Server, Key } from "lucide-react";
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 const configSchema = z.object({
   panelUrl: z.string().url({ message: "Must be a valid URL" }),
-  username: z.string().min(1, { message: "Username/Email is required" }),
-  password: z.string().min(1, { message: "Password is required" }),
+  apiKey: z.string().min(1, { message: "API key is required" }),
   serverId: z.string().min(1, { message: "Server ID is required" }),
   backupIntervalMinutes: z.coerce.number().min(1).default(5),
 });
@@ -26,18 +25,14 @@ export function Configuration() {
   const queryClient = useQueryClient();
 
   const { data: savedConfig } = useGetConfig();
-  const { data: status } = useGetBotStatus({
-    query: {
-      queryKey: getGetBotStatusQueryKey(),
-    }
-  });
+  useGetBotStatus({ query: { queryKey: getGetBotStatusQueryKey() } });
 
   const saveConfig = useSaveConfig({
     mutation: {
       onSuccess: () => {
         toast({
           title: "Configuration Saved",
-          description: "Your backup bot configuration has been saved to the database.",
+          description: "Your API key and server settings have been saved.",
         });
         queryClient.invalidateQueries({ queryKey: getGetBotStatusQueryKey() });
       },
@@ -47,29 +42,26 @@ export function Configuration() {
           description: err.data?.error || "An unknown error occurred",
           variant: "destructive",
         });
-      }
-    }
+      },
+    },
   });
 
   const form = useForm<ConfigFormValues>({
     resolver: zodResolver(configSchema),
     defaultValues: {
       panelUrl: "",
-      username: "",
-      password: "",
+      apiKey: "",
       serverId: "",
       backupIntervalMinutes: 5,
     },
   });
 
-  // Pre-fill form with saved config from the database (password excluded for security)
   useEffect(() => {
     const cfg = savedConfig?.config;
     if (cfg) {
       form.reset({
         panelUrl: cfg.panelUrl ?? "",
-        username: cfg.username ?? "",
-        password: "",
+        apiKey: cfg.apiKey ?? "",
         serverId: cfg.serverId ?? "",
         backupIntervalMinutes: cfg.backupIntervalMinutes ?? 5,
       });
@@ -80,8 +72,6 @@ export function Configuration() {
     saveConfig.mutate({ data });
   }
 
-  const hasSavedConfig = !!savedConfig?.config;
-
   return (
     <div className="space-y-6">
       <Card className="border-border/50 bg-card/40 backdrop-blur-sm">
@@ -90,10 +80,10 @@ export function Configuration() {
             <Server className="w-4 h-4" />
             PANEL CONNECTION
           </CardTitle>
-          <CardDescription className="text-xs">
-            {hasSavedConfig
-              ? "Config loaded from database. Enter your password to save changes."
-              : "Enter your Pterodactyl panel credentials and target server."}
+          <CardDescription className="text-xs text-muted-foreground">
+            Generate a Client API key in your panel under{" "}
+            <span className="font-mono text-foreground/70">Account &rarr; API Credentials</span>.
+            No username or password needed.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -104,9 +94,35 @@ export function Configuration() {
                 name="panelUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Panel URL</FormLabel>
+                    <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                      Panel URL
+                    </FormLabel>
                     <FormControl>
-                      <Input placeholder="https://panel.example.com" className="font-mono text-sm bg-background/50" {...field} />
+                      <Input
+                        placeholder="https://panel.example.com"
+                        className="font-mono text-sm bg-background/50"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="apiKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Key className="w-3 h-3" /> Client API Key
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="ptlc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        className="font-mono text-sm bg-background/50"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage className="text-xs" />
                   </FormItem>
@@ -116,44 +132,18 @@ export function Configuration() {
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Username / Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="admin@example.com" className="font-mono text-sm bg-background/50" {...field} />
-                      </FormControl>
-                      <FormMessage className="text-xs" />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                        Password{hasSavedConfig ? " (required to save)" : ""}
-                      </FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="••••••••" className="font-mono text-sm bg-background/50" {...field} />
-                      </FormControl>
-                      <FormMessage className="text-xs" />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
                   name="serverId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Server ID</FormLabel>
+                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                        Server ID
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="8b13c2f" className="font-mono text-sm bg-background/50" {...field} />
+                        <Input
+                          placeholder="f29ac483"
+                          className="font-mono text-sm bg-background/50"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage className="text-xs" />
                     </FormItem>
@@ -165,9 +155,17 @@ export function Configuration() {
                   name="backupIntervalMinutes"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Interval (Min)</FormLabel>
+                      <FormLabel className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                        Interval (Min)
+                      </FormLabel>
                       <FormControl>
-                        <Input type="number" min="1" placeholder="5" className="font-mono text-sm bg-background/50" {...field} />
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="5"
+                          className="font-mono text-sm bg-background/50"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage className="text-xs" />
                     </FormItem>
@@ -194,6 +192,26 @@ export function Configuration() {
               </Button>
             </form>
           </Form>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 bg-card/20">
+        <CardContent className="p-4 space-y-2">
+          <p className="font-mono text-xs text-primary uppercase tracking-widest">How to get your API key</p>
+          <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside font-sans">
+            <li>Log in to your Pterodactyl panel</li>
+            <li>
+              Click your avatar &rarr; <span className="font-mono text-foreground/70">API Credentials</span>
+            </li>
+            <li>
+              Click <span className="font-mono text-foreground/70">Create New</span>, give it any description
+            </li>
+            <li>Copy the key starting with <span className="font-mono text-foreground/70">ptlc_</span></li>
+          </ol>
+          <p className="text-xs text-muted-foreground font-sans pt-1">
+            The Server ID is the short alphanumeric ID in your server URL, e.g.{" "}
+            <span className="font-mono text-foreground/70">/server/f29ac483</span>.
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -129,7 +129,7 @@ export const getGetConfigUrl = () => {
 }
 
 /**
- * @summary Get saved bot configuration (password omitted)
+ * @summary Get saved bot configuration
  */
 export const getConfig = async ( options?: RequestInit): Promise<BotConfigResult> => {
 
@@ -176,7 +176,7 @@ export type GetConfigQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get saved bot configuration (password omitted)
+ * @summary Get saved bot configuration
  */
 
 export function useGetConfig<TData = Awaited<ReturnType<typeof getConfig>>, TError = ErrorType<unknown>>(
@@ -277,7 +277,7 @@ export const getStartBotUrl = () => {
 }
 
 /**
- * @summary Start the Puppeteer automation bot
+ * @summary Start the backup bot
  */
 export const startBot = async ( options?: RequestInit): Promise<SuccessResponse> => {
 
@@ -325,7 +325,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type StartBotMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Start the Puppeteer automation bot
+ * @summary Start the backup bot
  */
 export const useStartBot = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startBot>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -347,7 +347,7 @@ export const getStopBotUrl = () => {
 }
 
 /**
- * @summary Stop the Puppeteer automation bot
+ * @summary Stop the backup bot
  */
 export const stopBot = async ( options?: RequestInit): Promise<SuccessResponse> => {
 
@@ -395,7 +395,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type StopBotMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Stop the Puppeteer automation bot
+ * @summary Stop the backup bot
  */
 export const useStopBot = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof stopBot>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}

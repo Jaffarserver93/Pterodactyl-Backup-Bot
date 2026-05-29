@@ -32,7 +32,7 @@ paths:
     get:
       operationId: getConfig
       tags: [bot]
-      summary: Get saved bot configuration (password omitted)
+      summary: Get saved bot configuration
       responses:
         "200":
           description: Current saved config or null
@@ -68,7 +68,7 @@ paths:
     post:
       operationId: startBot
       tags: [bot]
-      summary: Start the Puppeteer automation bot
+      summary: Start the backup bot
       responses:
         "200":
           description: Bot started
@@ -87,7 +87,7 @@ paths:
     post:
       operationId: stopBot
       tags: [bot]
-      summary: Stop the Puppeteer automation bot
+      summary: Stop the backup bot
       responses:
         "200":
           description: Bot stopped
@@ -235,7 +235,7 @@ components:
       properties:
         panelUrl:
           type: string
-        username:
+        apiKey:
           type: string
         serverId:
           type: string
@@ -243,7 +243,7 @@ components:
           type: number
       required:
         - panelUrl
-        - username
+        - apiKey
         - serverId
         - backupIntervalMinutes
 
@@ -252,9 +252,7 @@ components:
       properties:
         panelUrl:
           type: string
-        username:
-          type: string
-        password:
+        apiKey:
           type: string
         serverId:
           type: string
@@ -262,8 +260,7 @@ components:
           type: number
       required:
         - panelUrl
-        - username
-        - password
+        - apiKey
         - serverId
 
     BotStatus:

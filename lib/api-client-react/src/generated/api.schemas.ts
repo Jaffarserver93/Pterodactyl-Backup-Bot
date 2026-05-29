@@ -20,7 +20,7 @@ export interface ErrorResponse {
 
 export interface SavedConfig {
   panelUrl: string;
-  username: string;
+  apiKey: string;
   serverId: string;
   backupIntervalMinutes: number;
 }
@@ -31,8 +31,7 @@ export interface BotConfigResult {
 
 export interface BotConfig {
   panelUrl: string;
-  username: string;
-  password: string;
+  apiKey: string;
   serverId: string;
   backupIntervalMinutes?: number;
 }

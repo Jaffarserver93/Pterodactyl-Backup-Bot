@@ -17,12 +17,12 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary Get saved bot configuration (password omitted)
+ * @summary Get saved bot configuration
  */
 export const GetConfigResponse = zod.object({
   "config": zod.union([zod.object({
   "panelUrl": zod.string(),
-  "username": zod.string(),
+  "apiKey": zod.string(),
   "serverId": zod.string(),
   "backupIntervalMinutes": zod.number()
 }),zod.null()])
@@ -34,8 +34,7 @@ export const GetConfigResponse = zod.object({
  */
 export const SaveConfigBody = zod.object({
   "panelUrl": zod.string(),
-  "username": zod.string(),
-  "password": zod.string(),
+  "apiKey": zod.string(),
   "serverId": zod.string(),
   "backupIntervalMinutes": zod.number().optional()
 })
@@ -47,7 +46,7 @@ export const SaveConfigResponse = zod.object({
 
 
 /**
- * @summary Start the Puppeteer automation bot
+ * @summary Start the backup bot
  */
 export const StartBotResponse = zod.object({
   "success": zod.boolean(),
@@ -56,7 +55,7 @@ export const StartBotResponse = zod.object({
 
 
 /**
- * @summary Stop the Puppeteer automation bot
+ * @summary Stop the backup bot
  */
 export const StopBotResponse = zod.object({
   "success": zod.boolean(),
