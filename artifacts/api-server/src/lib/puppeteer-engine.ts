@@ -57,7 +57,7 @@ async function runBackupCycle(io: SocketIOServer): Promise<void> {
     emitLog(io, "info", `Navigating to backup page for server ${serverId}`);
 
     const backupsUrl = `${panelUrl}/server/${serverId}/backups`;
-    await page.goto(backupsUrl, { waitUntil: "networkidle2", timeout: 30000 });
+    await page.goto(backupsUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
 
     setCurrentAction("Looking for Create Backup button...");
     emitLog(io, "info", "Looking for Create Backup button");
@@ -162,7 +162,7 @@ export async function startBot(io: SocketIOServer): Promise<void> {
     setCurrentAction("Loading panel...");
 
     // Navigate to login page
-    await page.goto(panelUrl, { waitUntil: "networkidle2", timeout: 30000 });
+    await page.goto(panelUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
 
     emitLog(io, "info", "Entering credentials...");
     setCurrentAction("Logging in...");
@@ -199,11 +199,17 @@ export async function startBot(io: SocketIOServer): Promise<void> {
       await page.keyboard.press("Enter");
     }
 
-    // Wait for login to complete (URL should change away from /auth)
-    await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 });
+    // Wait for login to complete (URL should change away from /auth or /login)
+    await page.waitForFunction(
+      () => !window.location.href.includes("/auth") && !window.location.href.includes("/login"),
+      { timeout: 30000, polling: 500 }
+    ).catch(async () => {
+      // Fallback: just wait for any navigation
+      await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
+    });
 
     const currentUrl = page.url();
-    if (currentUrl.includes("auth") || currentUrl.includes("login")) {
+    if (currentUrl.includes("/auth") || currentUrl.includes("/login")) {
       throw new Error("Login failed — check credentials");
     }
 
