@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Square, Activity, Database, Clock, Terminal as TerminalIcon, AlertCircle } from "lucide-react";
+import { Play, Square, Activity, Database, Terminal as TerminalIcon, AlertCircle, Trash2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export function Dashboard() {
-  const { screenshot, logs } = useSocketEvents();
+  const { screenshot, logs, clearLogs } = useSocketEvents();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -175,7 +175,15 @@ export function Dashboard() {
       <div className="flex-1 min-h-[150px] rounded-md border border-border/50 bg-zinc-950 flex flex-col overflow-hidden shadow-inner">
         <div className="h-6 bg-secondary/50 flex items-center px-3 border-b border-border/50 shrink-0">
           <TerminalIcon className="w-3 h-3 mr-2 text-muted-foreground" />
-          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Terminal Output</span>
+          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest flex-1">Terminal Output</span>
+          <button
+            onClick={clearLogs}
+            className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 hover:text-destructive transition-colors px-1"
+            title="Clear logs"
+          >
+            <Trash2 className="w-3 h-3" />
+            <span className="uppercase tracking-widest">Clear</span>
+          </button>
         </div>
         <div className="p-2 overflow-y-auto terminal-scroll flex-1 font-mono text-[10px] leading-relaxed break-all">
           {logs.length === 0 ? (

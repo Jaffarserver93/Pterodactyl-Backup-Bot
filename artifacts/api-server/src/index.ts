@@ -3,6 +3,7 @@ import { Server as SocketIOServer } from "socket.io";
 import app from "./app.js";
 import { setIo } from "./socket.js";
 import { logger } from "./lib/logger.js";
+import { getLogBuffer } from "./lib/bot-state.js";
 
 const rawPort = process.env["PORT"];
 
@@ -34,6 +35,11 @@ setIo(io);
 
 io.on("connection", (socket) => {
   logger.info({ socketId: socket.id }, "WebSocket client connected");
+  // Replay buffered logs so the client can restore its terminal on reconnect
+  const history = getLogBuffer();
+  if (history.length > 0) {
+    socket.emit("bot:log_history", history);
+  }
   socket.on("disconnect", () => {
     logger.info({ socketId: socket.id }, "WebSocket client disconnected");
   });

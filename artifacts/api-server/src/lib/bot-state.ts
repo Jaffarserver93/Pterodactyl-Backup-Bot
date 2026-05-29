@@ -1,4 +1,23 @@
 // Volatile in-memory state — all data is wiped on server restart
+
+export interface LogEntry {
+  level: "info" | "warn" | "error" | "success";
+  message: string;
+  timestamp: string;
+}
+
+const LOG_BUFFER_MAX = 200;
+const logBuffer: LogEntry[] = [];
+
+export function pushLog(entry: LogEntry): void {
+  logBuffer.push(entry);
+  if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.splice(0, logBuffer.length - LOG_BUFFER_MAX);
+}
+
+export function getLogBuffer(): readonly LogEntry[] {
+  return logBuffer;
+}
+
 export interface BotConfig {
   panelUrl: string;
   username: string;

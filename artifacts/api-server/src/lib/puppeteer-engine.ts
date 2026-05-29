@@ -7,6 +7,7 @@ import {
   setCurrentAction,
   recordBackup,
   resetState,
+  pushLog,
 } from "./bot-state.js";
 import { sendSavedMessage, getTelegramStatus } from "./telegram-client.js";
 import { logger } from "./logger.js";
@@ -16,9 +17,10 @@ let page: Page | null = null;
 let backupInterval: NodeJS.Timeout | null = null;
 let screenshotInterval: NodeJS.Timeout | null = null;
 
-// Emit a log message to all connected clients
+// Emit a log message to all connected clients and store in replay buffer
 function emitLog(io: SocketIOServer, level: "info" | "warn" | "error" | "success", message: string) {
   const entry = { level, message, timestamp: new Date().toISOString() };
+  pushLog(entry);
   io.emit("bot:log", entry);
   logger[level === "success" ? "info" : level]({ botLog: message }, message);
 }
@@ -199,18 +201,31 @@ export async function startBot(io: SocketIOServer): Promise<void> {
       await page.keyboard.press("Enter");
     }
 
-    // Wait for login to complete (URL should change away from /auth or /login)
-    await page.waitForFunction(
-      () => !window.location.href.includes("/auth") && !window.location.href.includes("/login"),
-      { timeout: 30000, polling: 500 }
-    ).catch(async () => {
-      // Fallback: just wait for any navigation
-      await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
-    });
-
-    const currentUrl = page.url();
-    if (currentUrl.includes("/auth") || currentUrl.includes("/login")) {
-      throw new Error("Login failed — check credentials");
+    // Wait for URL change (success) OR an error message appearing on the page (fast fail)
+    const loginResultHandle = await page.waitForFunction(
+      () => {
+        const url = window.location.href;
+        // Success: navigated away from auth/login
+        if (!url.includes("/auth") && !url.includes("/login")) {
+          return JSON.stringify({ ok: true });
+        }
+        // Check for visible error messages — Pterodactyl uses Tailwind red classes
+        const candidates = Array.from(document.querySelectorAll(
+          '[class*="text-red"], [class*="bg-red"], [class*="error"], [role="alert"], .alert'
+        ));
+        for (const el of candidates) {
+          const text = el.textContent?.trim() ?? "";
+          if (text.length > 5 && text.length < 300) {
+            return JSON.stringify({ ok: false, message: text });
+          }
+        }
+        return null; // keep polling
+      },
+      { timeout: 30000, polling: 400 }
+    );
+    const loginResult = JSON.parse(await loginResultHandle.jsonValue() as string) as { ok: boolean; message?: string };
+    if (!loginResult.ok) {
+      throw new Error(loginResult.message ?? "Login failed — check credentials");
     }
 
     emitLog(io, "success", "Login successful!");
