@@ -9,7 +9,7 @@ import {
   pushLog,
   type BotConfig,
 } from "./bot-state.js";
-import { sendBackupFile, getTelegramStatus } from "./telegram-client.js";
+import { sendBackupFile, sendSavedMessage, getTelegramStatus } from "./telegram-client.js";
 import { logger } from "./logger.js";
 import { createWriteStream, unlink } from "node:fs";
 import { pipeline } from "node:stream/promises";
@@ -71,8 +71,11 @@ interface PteroBackup {
     is_successful: boolean;
     is_locked: boolean;
     completed_at: string | null;
+    bytes: number;
   };
 }
+
+const TELEGRAM_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB (regular account limit)
 
 interface PteroBackupList {
   data: PteroBackup[];
@@ -164,43 +167,71 @@ async function runBackupCycle(
     emitLog(io, "success", `Backup complete: ${backupName}`);
     setCurrentAction("Uploading backup to Telegram...");
 
-    // Download backup file and upload to Telegram Saved Messages
+    // Send backup to Telegram Saved Messages (file upload or text fallback)
     const tgStatus = getTelegramStatus();
     if (tgStatus.authenticated) {
-      const tmpFile = join(tmpdir(), `pterobot-${backupUuid}.tar.gz`);
-      try {
-        // 1. Get signed download URL from Pterodactyl
-        emitLog(io, "info", "Getting backup download URL...");
-        const dlData = await pteroFetch<{ attributes: { url: string } }>(
-          panelUrl,
-          apiKey,
-          `/servers/${serverId}/backups/${backupUuid}/download`,
-        );
-        const downloadUrl = dlData.attributes.url;
+      // Re-fetch backup detail to get the final size (bytes is set once complete)
+      const finalDetail = await pteroFetch<PteroBackup>(
+        panelUrl,
+        apiKey,
+        `/servers/${serverId}/backups/${backupUuid}`,
+      );
+      const backupBytes = finalDetail.attributes.bytes ?? 0;
+      const backupSizeMb = (backupBytes / 1024 / 1024).toFixed(1);
 
-        // 2. Stream download to a temp file
-        emitLog(io, "info", "Downloading backup file...");
-        const dlRes = await fetch(downloadUrl);
-        if (!dlRes.ok || !dlRes.body) {
-          throw new Error(`Download failed: ${dlRes.status} ${dlRes.statusText}`);
+      const caption =
+        `Pterodactyl Backup #${state.backupCount}\n` +
+        `Server: ${serverId}\n` +
+        `Name: ${backupName}\n` +
+        `Size: ${backupSizeMb} MB\n` +
+        `Time: ${timestamp}`;
+
+      if (backupBytes > 0 && backupBytes <= TELEGRAM_MAX_BYTES) {
+        // File is within Telegram's 2 GB limit — download and upload
+        const tmpFile = join(tmpdir(), `pterobot-${backupUuid}.tar.gz`);
+        try {
+          emitLog(io, "info", `Backup size: ${backupSizeMb} MB — downloading for Telegram upload...`);
+
+          const dlData = await pteroFetch<{ attributes: { url: string } }>(
+            panelUrl,
+            apiKey,
+            `/servers/${serverId}/backups/${backupUuid}/download`,
+          );
+          const downloadUrl = dlData.attributes.url;
+
+          const dlRes = await fetch(downloadUrl);
+          if (!dlRes.ok || !dlRes.body) {
+            throw new Error(`Download failed: ${dlRes.status} ${dlRes.statusText}`);
+          }
+          const fileStream = createWriteStream(tmpFile);
+          await pipeline(dlRes.body as unknown as NodeJS.ReadableStream, fileStream);
+          emitLog(io, "info", "Download complete — uploading to Telegram...");
+
+          await sendBackupFile(tmpFile, caption);
+          emitLog(io, "success", "Backup file uploaded to Telegram Saved Messages");
+        } catch (err) {
+          emitLog(io, "warn", `Telegram upload failed: ${(err as Error).message}`);
+        } finally {
+          unlink(tmpFile, () => {});
         }
-        const fileStream = createWriteStream(tmpFile);
-        await pipeline(dlRes.body as unknown as NodeJS.ReadableStream, fileStream);
-        emitLog(io, "info", "Download complete — uploading to Telegram...");
-
-        // 3. Upload file to Saved Messages
-        const caption =
-          `Pterodactyl Backup #${state.backupCount}\n` +
+      } else {
+        // File is too large (>2 GB) or size unknown — send a text notification instead
+        const sizeNote = backupBytes > TELEGRAM_MAX_BYTES
+          ? `File too large to upload via Telegram (${backupSizeMb} MB > 2048 MB limit). Download it from your panel manually.`
+          : `Backup complete — file size unavailable. Download it from your panel manually.`;
+        const msg =
+          `Pterodactyl Backup #${state.backupCount} — Complete\n\n` +
           `Server: ${serverId}\n` +
           `Name: ${backupName}\n` +
-          `Time: ${timestamp}`;
-        await sendBackupFile(tmpFile, caption);
-        emitLog(io, "success", "Backup file uploaded to Telegram Saved Messages");
-      } catch (err) {
-        emitLog(io, "warn", `Telegram upload failed: ${(err as Error).message}`);
-      } finally {
-        // 4. Delete temp file regardless of success/failure
-        unlink(tmpFile, () => {});
+          `Size: ${backupSizeMb} MB\n` +
+          `Time: ${timestamp}\n\n` +
+          sizeNote;
+        try {
+          await sendSavedMessage(msg);
+          emitLog(io, "info", `Telegram text notification sent (backup too large to upload: ${backupSizeMb} MB)`);
+        } catch (err) {
+          emitLog(io, "warn", `Telegram notification failed: ${(err as Error).message}`);
+        }
       }
     }
 
