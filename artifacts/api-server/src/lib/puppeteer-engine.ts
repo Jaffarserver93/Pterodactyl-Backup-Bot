@@ -160,40 +160,35 @@ export async function startBot(io: SocketIOServer): Promise<void> {
     page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
 
-    emitLog(io, "info", `Navigating to ${panelUrl}`);
-    setCurrentAction("Loading panel...");
+    // Pterodactyl always redirects the root to /auth/login — go there directly
+    const loginUrl = `${panelUrl}/auth/login`;
+    emitLog(io, "info", `Navigating to ${loginUrl}`);
+    setCurrentAction("Loading login page...");
 
-    // Navigate to login page
-    await page.goto(panelUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
 
     emitLog(io, "info", "Entering credentials...");
     setCurrentAction("Logging in...");
 
-    // Fill in login form via DOM manipulation
-    await page.waitForSelector('input[type="email"], input[name="user"], input[name="username"], input[name="email"]', {
-      timeout: 15000,
-    });
+    // Wait for the username/email field to appear
+    const userSelector = 'input[name="username"], input[name="user"], input[type="email"], input[name="email"]';
+    await page.waitForSelector(userSelector, { timeout: 15000 });
 
-    await page.evaluate((u: string, p: string) => {
-      const emailInput = document.querySelector<HTMLInputElement>(
-        'input[type="email"], input[name="user"], input[name="username"], input[name="email"]'
-      );
-      const passInput = document.querySelector<HTMLInputElement>('input[type="password"]');
-      if (emailInput) {
-        emailInput.focus();
-        emailInput.value = u;
-        emailInput.dispatchEvent(new Event("input", { bubbles: true }));
-        emailInput.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      if (passInput) {
-        passInput.focus();
-        passInput.value = p;
-        passInput.dispatchEvent(new Event("input", { bubbles: true }));
-        passInput.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-    }, username, password);
+    // Clear any pre-filled value then type — page.type() fires real keyboard events
+    // which React's synthetic event system processes correctly (unlike .value assignment)
+    const userInput = await page.$(userSelector);
+    if (!userInput) throw new Error("Login form not found — check the panel URL");
 
-    // Click submit button
+    await userInput.click({ clickCount: 3 }); // select all existing text
+    await userInput.type(username, { delay: 30 });
+
+    const passInput = await page.$('input[type="password"]');
+    if (!passInput) throw new Error("Password field not found on login page");
+
+    await passInput.click({ clickCount: 3 });
+    await passInput.type(password, { delay: 30 });
+
+    // Submit the form
     const submitBtn = await page.$('button[type="submit"], input[type="submit"]');
     if (submitBtn) {
       await submitBtn.click();
@@ -201,27 +196,29 @@ export async function startBot(io: SocketIOServer): Promise<void> {
       await page.keyboard.press("Enter");
     }
 
-    // Wait for URL change (success) OR an error message appearing on the page (fast fail)
+    emitLog(io, "info", "Credentials submitted — waiting for response...");
+
+    // Wait for redirect away from /auth (success) or an error message (fast fail)
     const loginResultHandle = await page.waitForFunction(
       () => {
         const url = window.location.href;
-        // Success: navigated away from auth/login
-        if (!url.includes("/auth") && !url.includes("/login")) {
+        // Success: navigated away from /auth/login
+        if (!url.includes("/auth/login")) {
           return JSON.stringify({ ok: true });
         }
-        // Check for visible error messages — Pterodactyl uses Tailwind red classes
+        // Pterodactyl renders login errors inside a <div> with specific patterns
         const candidates = Array.from(document.querySelectorAll(
-          '[class*="text-red"], [class*="bg-red"], [class*="error"], [role="alert"], .alert'
+          '[class*="text-red"], [class*="bg-red"], [class*="error"], [role="alert"], .alert, [class*="alert"]'
         ));
         for (const el of candidates) {
-          const text = el.textContent?.trim() ?? "";
-          if (text.length > 5 && text.length < 300) {
+          const text = (el as HTMLElement).textContent?.trim() ?? "";
+          if (text.length > 3 && text.length < 400) {
             return JSON.stringify({ ok: false, message: text });
           }
         }
         return null; // keep polling
       },
-      { timeout: 30000, polling: 400 }
+      { timeout: 30000, polling: 500 }
     );
     const loginResult = JSON.parse(await loginResultHandle.jsonValue() as string) as { ok: boolean; message?: string };
     if (!loginResult.ok) {
