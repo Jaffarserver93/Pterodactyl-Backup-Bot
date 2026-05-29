@@ -238,8 +238,20 @@ async function runBackupCycle(
     setCurrentAction("Idle — waiting for next backup cycle");
   } catch (err) {
     const message = (err as Error).message;
-    emitLog(io, "error", `Backup cycle error: ${message}`);
-    setCurrentAction("Error — retrying next cycle");
+    // 429 rate limit from Pterodactyl — not a real error, just a timing constraint
+    const isRateLimit = message.includes("429") && (
+      message.includes("span of time") || message.includes("second span") || message.includes("generated within")
+    );
+    if (isRateLimit) {
+      const match = message.match(/(\d+)\s*second/);
+      const seconds = match ? parseInt(match[1]) : 600;
+      const minutes = Math.ceil(seconds / 60);
+      emitLog(io, "warn", `Rate limited by Pterodactyl — skipping this cycle. Set backup interval to at least ${minutes} minutes to avoid this.`);
+      setCurrentAction(`Rate limited — next cycle in ${config.backupIntervalMinutes} min`);
+    } else {
+      emitLog(io, "error", `Backup cycle error: ${message}`);
+      setCurrentAction("Error — retrying next cycle");
+    }
   }
 }
 
