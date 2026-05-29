@@ -9,8 +9,12 @@ import {
   pushLog,
   type BotConfig,
 } from "./bot-state.js";
-import { sendSavedMessage, getTelegramStatus } from "./telegram-client.js";
+import { sendBackupFile, getTelegramStatus } from "./telegram-client.js";
 import { logger } from "./logger.js";
+import { createWriteStream, unlink } from "node:fs";
+import { pipeline } from "node:stream/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 let backupInterval: NodeJS.Timeout | null = null;
 let _running = false;
@@ -158,24 +162,49 @@ async function runBackupCycle(
     const state = getState();
     const timestamp = new Date().toISOString();
     emitLog(io, "success", `Backup complete: ${backupName}`);
-    setCurrentAction("Idle — waiting for next backup cycle");
+    setCurrentAction("Uploading backup to Telegram...");
 
-    // Telegram notification
+    // Download backup file and upload to Telegram Saved Messages
     const tgStatus = getTelegramStatus();
     if (tgStatus.authenticated) {
+      const tmpFile = join(tmpdir(), `pterobot-${backupUuid}.tar.gz`);
       try {
-        const msg =
-          `🔒 *Pterodactyl Backup Complete*\n\n` +
-          `📦 Server: \`${serverId}\`\n` +
-          `🕐 Time: \`${timestamp}\`\n` +
-          `📝 Name: ${backupName}\n\n` +
-          `✅ Backup #${state.backupCount} saved successfully`;
-        await sendSavedMessage(msg);
-        emitLog(io, "info", "Telegram notification sent");
+        // 1. Get signed download URL from Pterodactyl
+        emitLog(io, "info", "Getting backup download URL...");
+        const dlData = await pteroFetch<{ attributes: { url: string } }>(
+          panelUrl,
+          apiKey,
+          `/servers/${serverId}/backups/${backupUuid}/download`,
+        );
+        const downloadUrl = dlData.attributes.url;
+
+        // 2. Stream download to a temp file
+        emitLog(io, "info", "Downloading backup file...");
+        const dlRes = await fetch(downloadUrl);
+        if (!dlRes.ok || !dlRes.body) {
+          throw new Error(`Download failed: ${dlRes.status} ${dlRes.statusText}`);
+        }
+        const fileStream = createWriteStream(tmpFile);
+        await pipeline(dlRes.body as unknown as NodeJS.ReadableStream, fileStream);
+        emitLog(io, "info", "Download complete — uploading to Telegram...");
+
+        // 3. Upload file to Saved Messages
+        const caption =
+          `Pterodactyl Backup #${state.backupCount}\n` +
+          `Server: ${serverId}\n` +
+          `Name: ${backupName}\n` +
+          `Time: ${timestamp}`;
+        await sendBackupFile(tmpFile, caption);
+        emitLog(io, "success", "Backup file uploaded to Telegram Saved Messages");
       } catch (err) {
-        emitLog(io, "warn", `Telegram notification failed: ${(err as Error).message}`);
+        emitLog(io, "warn", `Telegram upload failed: ${(err as Error).message}`);
+      } finally {
+        // 4. Delete temp file regardless of success/failure
+        unlink(tmpFile, () => {});
       }
     }
+
+    setCurrentAction("Idle — waiting for next backup cycle");
   } catch (err) {
     const message = (err as Error).message;
     emitLog(io, "error", `Backup cycle error: ${message}`);

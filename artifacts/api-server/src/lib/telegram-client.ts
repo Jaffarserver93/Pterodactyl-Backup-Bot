@@ -122,9 +122,24 @@ export async function sendSavedMessage(text: string): Promise<void> {
   if (!client || !authenticated) {
     throw new Error("Telegram client not authenticated");
   }
-  // Send to "Saved Messages" using InputPeerSelf
   await client.sendMessage("me", { message: text });
   logger.info("Telegram message sent to Saved Messages");
+}
+
+export async function sendBackupFile(
+  filePath: string,
+  caption: string,
+): Promise<void> {
+  const { client, authenticated } = telegramState;
+  if (!client || !authenticated) {
+    throw new Error("Telegram client not authenticated");
+  }
+  await client.sendFile("me", {
+    file: filePath,
+    caption,
+    forceDocument: true,
+  });
+  logger.info("Telegram backup file uploaded to Saved Messages");
 }
 
 export async function disconnectTelegram(): Promise<void> {
